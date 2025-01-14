@@ -1,15 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel;
 
 namespace CleanArchitecture.Blazor.Infrastructure.PermissionSet;
+
 public static partial class Permissions
 {
-    [DisplayName("Documents")]
-    [Description("Documents Permissions")]
+
+    [DisplayName("Document Permissions")]
+    [Description("Set permissions for document operations.")]
     public static class Documents
     {
         public const string View = "Permissions.Documents.View";

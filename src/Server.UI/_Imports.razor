@@ -1,5 +1,10 @@
 ﻿@using System.Net.Http
 @using System.Net.Http.Json
+@using System.Reflection
+@using System.Text
+@using System.ComponentModel
+@using CleanArchitecture.Blazor.Application.Common.Interfaces.MediatorWrapper
+@using CleanArchitecture.Blazor.Server.UI.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Routing
@@ -13,12 +18,7 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.JSInterop
 @using MudBlazor
-@using MudExtensions
-@using MudExtensions.Enums
-@using BlazorTime
 @using MediatR
-@using CleanArchitecture.Blazor.Server.UI.Fluxor
-@using AutoMapper
 @using FluentValidation;
 @using CleanArchitecture.Blazor.Domain
 @using CleanArchitecture.Blazor.Application.Common.ExceptionHandlers
@@ -34,6 +34,9 @@
 @using CleanArchitecture.Blazor.Server.UI
 @using CleanArchitecture.Blazor.Server.UI.Shared
 @using CleanArchitecture.Blazor.Server.UI.Components
+@using CleanArchitecture.Blazor.Server.UI.Components.Forms
+@using CleanArchitecture.Blazor.Server.UI.Components.Breadcrumbs
+@using CleanArchitecture.Blazor.Server.UI.Components.LoadingButton
 @using CleanArchitecture.Blazor.Server.UI.Components.Autocompletes
 @using CleanArchitecture.Blazor.Server.UI.Components.Dialogs
 @using CleanArchitecture.Blazor.Server.UI.Components.Identity
@@ -46,9 +49,15 @@
 @using CleanArchitecture.Blazor.Server.UI.Components.Shared.Layout
 @using CleanArchitecture.Blazor.Server.UI.Services.Layout
 @using CleanArchitecture.Blazor.Server.UI.Extensions
-
+@using Severity=MudBlazor.Severity
+@using Color = MudBlazor.Color
 @inject IApplicationSettings ApplicationSettings
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject IConfiguration Config
 @inject IAuthorizationService AuthService 
+@inject IValidationService Validator
+@inject IJSRuntime JS
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject DialogServiceHelper DialogServiceHelper

@@ -1,17 +1,12 @@
-﻿@using Severity = Severity
-@using Toolbelt.Blazor.HotKeys2
-@using CleanArchitecture.Blazor.Server.UI.Services.UserPreferences
-@using CleanArchitecture.Blazor.Server.UI.Constants
-@layout MainLayout
+﻿@layout MainLayout
 @inherits LayoutComponentBase
-
+@inject UserProfileStateService UserProfileStateService
 @inject LayoutService LayoutService
-@inject HotKeys HotKeys
-@inject IStringLocalizer<SharedResource> L
+@implements IDisposable
 <MudLayout>
     <AuthorizeView>
         <NotAuthorized>
-            <RedirectToLogin />
+            <RedirectToLogin/>
         </NotAuthorized>
         <Authorized>
             <HeaderMenu NavigationMenuDrawerOpen="_navigationMenuDrawerOpen"
@@ -20,19 +15,19 @@
                         ToggleNavigationMenuDrawer="ToggleNavigationMenuDrawer"
                         RightToLeft="@LayoutService.IsRTL"
                         RightToLeftToggle="LayoutService.ToggleRightToLeft"
-                        OnSettingClick="@(() => _themingDrawerOpen = true)" />
-            <NavigationMenu DrawerOpen="_navigationMenuDrawerOpen" Roles="@_userProfile?.AssignedRoles"
-                            DrawerOpenChanged="NavigationMenuDrawerOpenChangedHandler" />
+                        OnSettingClick="@(() => _themingDrawerOpen = true)"/>
+            <NavigationMenu DrawerOpen="_navigationMenuDrawerOpen" Roles="@(UserProfile?.AssignedRoles??[])"
+                            DrawerOpenChanged="NavigationMenuDrawerOpenChangedHandler"/>
             <ThemesMenu ThemingDrawerOpen="_themingDrawerOpen"
                         ThemingDrawerOpenChanged="ThemingDrawerOpenChangedHandler"
-                        UserPreferences="_userPreferences"
-                        UserPreferencesChanged="LayoutService.UpdateUserPreferences" />
-            <ThemesButton OnClick="@(() => _themingDrawerOpen = true)" />
+                        UserPreferences="@LayoutService.UserPreferences"
+                        UserPreferencesChanged="LayoutService.UpdateUserPreferences"/>
+            <ThemesButton OnClick="@(() => _themingDrawerOpen = true)"/>
             <MudMainContent>
                 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mb-4 mt-4">
-                    <ErrorBoundary @ref="_errorBoundary">
+                    <ErrorBoundary @ref="ErrorBoundary">
                         <ChildContent>
-                            <CascadingValue Value="@_userProfile">
+                            <CascadingValue Value="@UserProfile">
                                 @Body
                             </CascadingValue>
                         </ChildContent>
@@ -42,6 +37,7 @@
                     </ErrorBoundary>
                 </MudContainer>
             </MudMainContent>
+          
             <UserLoginState />
         </Authorized>
     </AuthorizeView>
@@ -52,26 +48,38 @@
 {
     private bool _commandPaletteOpen;
     private bool _navigationMenuDrawerOpen = true;
-    private UserPreferences _userPreferences = new();
     private bool _themingDrawerOpen;
-    private UserProfile? _userProfile;
-    private ErrorBoundary? _errorBoundary { set; get; }
-    [CascadingParameter] 
-    private Task<AuthenticationState> AuthState { get; set; } = default!;
+    private UserProfile? UserProfile;
+    private ErrorBoundary? ErrorBoundary { set; get; }
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthState;
-        _userProfile = state.User.GetUserProfileFromClaim();
+        UserProfileStateService.OnChange += UserProfileStateService_OnChange;
+        await UserProfileStateService.InitializeAsync(state.User.Identity?.Name??string.Empty);
+        UserProfile = UserProfileStateService.UserProfile;
+
+    }
+     
+
+    public void Dispose()
+    {
+        UserProfileStateService.OnChange -= UserProfileStateService_OnChange;
     }
     protected override void OnParametersSet()
     {
         ResetBoundary();
     }
-
+    private async Task UserProfileStateService_OnChange()
+    {
+        UserProfile = UserProfileStateService.UserProfile;
+        await InvokeAsync(StateHasChanged);
+    }
     private void ResetBoundary()
     {
         // On each page navigation, reset any error state
-        _errorBoundary?.Recover();
+        ErrorBoundary?.Recover();
     }
 
     protected void NavigationMenuDrawerOpenChangedHandler(bool state)
@@ -94,13 +102,13 @@
         if (!_commandPaletteOpen)
         {
             var options = new DialogOptions
-                {
-                    NoHeader = true,
-                    MaxWidth = MaxWidth.Medium,
-                    FullWidth = true
-                };
+            {
+                NoHeader = true,
+                MaxWidth = MaxWidth.Medium,
+                FullWidth = true
+            };
 
-            var commandPalette = DialogService.Show<SearchDialog>("", options);
+            var commandPalette =await DialogService.ShowAsync<SearchDialog>("", options);
             _commandPaletteOpen = true;
 
             await commandPalette.Result;

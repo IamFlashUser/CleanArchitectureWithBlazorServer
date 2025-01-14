@@ -1,4 +1,4 @@
-// Copyright (c) MudBlazor 2021
+﻿// Copyright (c) MudBlazor 2021
 // MudBlazor licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -10,16 +10,16 @@ namespace CleanArchitecture.Blazor.Server.UI.Services.UserPreferences;
 public interface IUserPreferencesService
 {
     /// <summary>
-    ///     Saves UserPreferences in local storage
+    ///     Saves UserPreference in local storage
     /// </summary>
     /// <param name="userPreferences">The userPreferences to save in the local storage</param>
-    public Task SaveUserPreferences(UserPreferences userPreferences);
+    public Task SaveUserPreferences(UserPreference userPreferences);
 
     /// <summary>
-    ///     Loads UserPreferences in local storage
+    ///     Loads UserPreference in local storage
     /// </summary>
-    /// <returns>UserPreferences object. Null when no settings were found.</returns>
-    public Task<UserPreferences> LoadUserPreferences();
+    /// <returns>UserPreference object. Null when no settings were found.</returns>
+    public Task<UserPreference> LoadUserPreferences();
 }
 
 public class UserPreferencesService : IUserPreferencesService
@@ -32,23 +32,27 @@ public class UserPreferencesService : IUserPreferencesService
         _localStorage = localStorage;
     }
 
-    public async Task SaveUserPreferences(UserPreferences userPreferences)
+    public async Task SaveUserPreferences(UserPreference userPreferences)
     {
-        await _localStorage.SetAsync(Key, userPreferences);
+        await _localStorage.SetAsync(Key, userPreferences).ConfigureAwait(false);
     }
 
-    public async Task<UserPreferences> LoadUserPreferences()
+    public async Task<UserPreference> LoadUserPreferences()
     {
         try
         {
-            var result = await _localStorage.GetAsync<UserPreferences>(Key);
+            var result = await _localStorage.GetAsync<UserPreference>(Key).ConfigureAwait(false);
             if (result.Success && result.Value is not null) return result.Value;
-            return new UserPreferences();
+            return new UserPreference();
         }
         catch (CryptographicException)
         {
-            await _localStorage.DeleteAsync(Key);
-            return new UserPreferences();
+            await _localStorage.DeleteAsync(Key).ConfigureAwait(false);
+            return new UserPreference();
+        }
+        catch (Exception)
+        {
+            return new UserPreference();
         }
     }
 }

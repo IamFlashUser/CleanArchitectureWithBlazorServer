@@ -1,62 +1,52 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using AutoMapper;
-using AutoMapper.QueryableExtensions;
+using CleanArchitecture.Blazor.Application.Features.Identity.Mappers;
 using CleanArchitecture.Blazor.Application.Common.ExceptionHandlers;
 using CleanArchitecture.Blazor.Application.Features.Identity.DTOs;
 using CleanArchitecture.Blazor.Domain.Identity;
-using CleanArchitecture.Blazor.Infrastructure.Configurations;
-using CleanArchitecture.Blazor.Infrastructure.Extensions;
-using LazyCache;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Localization;
+using ZiggyCreatures.Caching.Fusion;
 
 namespace CleanArchitecture.Blazor.Infrastructure.Services.Identity;
 
 public class IdentityService : IIdentityService
 {
     private readonly IAuthorizationService _authorizationService;
-    private readonly IAppCache _cache;
     private readonly IStringLocalizer<IdentityService> _localizer;
-    private readonly IMapper _mapper;
+    private readonly IFusionCache _fusionCache;
     private readonly IUserClaimsPrincipalFactory<ApplicationUser> _userClaimsPrincipalFactory;
     private readonly UserManager<ApplicationUser> _userManager;
 
     public IdentityService(
         IServiceScopeFactory scopeFactory,
         IApplicationSettings appConfig,
-        IAppCache cache,
-        IMapper mapper,
+        IFusionCache fusionCache,
         IStringLocalizer<IdentityService> localizer)
     {
         var scope = scopeFactory.CreateScope();
         _userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        _userClaimsPrincipalFactory =
-            scope.ServiceProvider.GetRequiredService<IUserClaimsPrincipalFactory<ApplicationUser>>();
+        _userClaimsPrincipalFactory =scope.ServiceProvider.GetRequiredService<IUserClaimsPrincipalFactory<ApplicationUser>>();
         _authorizationService = scope.ServiceProvider.GetRequiredService<IAuthorizationService>();
-        _cache = cache;
-        _mapper = mapper;
+        _fusionCache = fusionCache;
         _localizer = localizer;
     }
 
-    private TimeSpan RefreshInterval => TimeSpan.FromSeconds(60);
-
-    private LazyCacheEntryOptions Options =>
-        new LazyCacheEntryOptions().SetAbsoluteExpiration(RefreshInterval, ExpirationMode.LazyExpiration);
+    private TimeSpan RefreshInterval => TimeSpan.FromMinutes(60);
 
     public async Task<string?> GetUserNameAsync(string userId, CancellationToken cancellation = default)
     {
         var key = $"GetUserNameAsync:{userId}";
-        var user = await _cache.GetOrAddAsync(key,
-            async () => await _userManager.Users.SingleOrDefaultAsync(u => u.Id == userId), Options);
+        var user = await _fusionCache.GetOrSetAsync(key,
+             _ => _userManager.Users.SingleOrDefaultAsync(u => u.Id == userId), RefreshInterval);
         return user?.UserName;
     }
 
     public string GetUserName(string userId)
     {
         var key = $"GetUserName-byId:{userId}";
-        var user = _cache.GetOrAdd(key, () => _userManager.Users.SingleOrDefault(u => u.Id == userId), Options);
+        var user = _fusionCache.GetOrSet(key, _ => _userManager.Users.SingleOrDefault(u => u.Id == userId), RefreshInterval);
         return user?.UserName ?? string.Empty;
     }
 
@@ -76,14 +66,6 @@ public class IdentityService : IIdentityService
         return result.Succeeded;
     }
 
-    public async Task<Result> DeleteUserAsync(string userId, CancellationToken cancellation = default)
-    {
-        var user = await _userManager.Users.SingleOrDefaultAsync(u => u.Id == userId, cancellation) ??
-                   throw new NotFoundException(_localizer["User Not Found."]);
-        var result = await _userManager.DeleteAsync(user);
-        return result.ToApplicationResult();
-    }
-
     public async Task<IDictionary<string, string?>> FetchUsers(string roleName,
         CancellationToken cancellation = default)
     {
@@ -94,23 +76,15 @@ public class IdentityService : IIdentityService
         return result;
     }
 
-    public async Task UpdateLiveStatus(string userId, bool isLive, CancellationToken cancellation = default)
-    {
-        var user = await _userManager.Users.FirstOrDefaultAsync(x => x.Id == userId && x.IsLive != isLive);
-        if (user is not null)
-        {
-            user.IsLive = isLive;
-            var result = await _userManager.UpdateAsync(user);
-        }
-    }
 
-    public async Task<ApplicationUserDto> GetApplicationUserDto(string userId, CancellationToken cancellation = default)
+    public async Task<ApplicationUserDto?> GetApplicationUserDto(string userName,
+        CancellationToken cancellation = default)
     {
-        var key = $"GetApplicationUserDto:{userId}";
-        var result = await _cache.GetOrAddAsync(key,
-            async () => await _userManager.Users.Where(x => x.Id == userId).Include(x => x.UserRoles)
-                .ThenInclude(x => x.Role).ProjectTo<ApplicationUserDto>(_mapper.ConfigurationProvider)
-                .FirstOrDefaultAsync(cancellation) ?? new ApplicationUserDto(), Options);
+        var key = GetApplicationUserCacheKey(userName);
+        var result = await _fusionCache.GetOrSetAsync(key,
+            _ =>  _userManager.Users.Where(x => x.UserName == userName).Include(x => x.UserRoles)
+                .ThenInclude(x => x.Role).ProjectTo()
+                .FirstOrDefaultAsync(cancellation), RefreshInterval);
         return result;
     }
 
@@ -122,12 +96,22 @@ public class IdentityService : IIdentityService
             {
                 if (string.IsNullOrEmpty(tenantId))
                     return await _userManager.Users.Include(x => x.UserRoles).ThenInclude(x => x.Role)
-                        .ProjectTo<ApplicationUserDto>(_mapper.ConfigurationProvider).ToListAsync();
+                        .ProjectTo().ToListAsync();
                 return await _userManager.Users.Where(x => x.TenantId == tenantId).Include(x => x.UserRoles)
                     .ThenInclude(x => x.Role)
-                    .ProjectTo<ApplicationUserDto>(_mapper.ConfigurationProvider).ToListAsync();
+                    .ProjectTo().ToListAsync();
             };
-        var result = await _cache.GetOrAddAsync(key, () => getUsersByTenantId(tenantId, cancellation), Options);
+        var result = await _fusionCache.GetOrSetAsync(key, _=>getUsersByTenantId(tenantId, cancellation), RefreshInterval);
         return result;
+    }
+
+    public void RemoveApplicationUserCache(string userName)
+    {
+        _fusionCache.Remove(GetApplicationUserCacheKey(userName));
+    }
+
+    private string GetApplicationUserCacheKey(string userName)
+    {
+        return $"GetApplicationUserDto:{userName}";
     }
 }

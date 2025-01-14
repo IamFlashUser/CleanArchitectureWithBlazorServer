@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
     <metadata>
         <id>CleanArchitecture.Blazor.Solution.Template</id>
-        <version>1.0.0-preview.19</version>
+        <version>1.0.0-preview.26</version>
         <title>Clean Architecture Blazor Solution Template</title>
         <authors>hl.z</authors>
         <description>Clean Architecture Blazor Solution Template for .NET 8.</description>
@@ -11,9 +11,10 @@
             ASP.NET Core.
         </summary>
         <releaseNotes>
-            1.0.0-preview.19
-            - 🌈 support.net 8
-            - ✨ add partial class PermissionSet
+            1.0.0-preview.26
+            - 🌈 Integrate Stl.Fusion for real-time updates 
+            - 🐛 fixed ocr process issue 
+            - 🌈 Implement Google and Microsoft External Provider Authentication 
         </releaseNotes>
 
         <projectUrl>https://github.com/neozhu/CleanArchitectureWithBlazorServer</projectUrl>

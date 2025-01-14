@@ -1,10 +1,13 @@
-﻿@using CleanArchitecture.Blazor.Server.UI.Services.UserPreferences
+﻿@using CleanArchitecture.Blazor.Server.UI.Components.Fusion
+@using CleanArchitecture.Blazor.Server.UI.Services.UserPreferences
 @using System.Globalization
 @inject LayoutService LayoutService
 @inject IStringLocalizer<ThemesMenu> L
 
-<MudDrawer Anchor="LayoutService.IsRTL ? Anchor.Left : Anchor.Right"
-           @bind-Open="ThemingDrawerOpen"
+<MudDrawer Anchor="LayoutService.IsRTL ? Anchor.Start : Anchor.End"
+           @bind-Open="@ThemingDrawerOpen"
+           OverlayAutoClose="true"
+           Overlay="false"
            Elevation="1"
            Variant="@DrawerVariant.Temporary"
            Width="260px">
@@ -12,11 +15,11 @@
         <MudText Typo="Typo.body1">
             <b>@L["Themes"]</b>
         </MudText>
-        <MudSpacer/>
+        <MudSpacer />
         <MudIconButton Color="Color.Default"
                        Icon="@Icons.Material.Filled.Close"
-                       OnClick="@(() => ThemingDrawerOpenChanged.InvokeAsync(false))"
-                       Size="Size.Small"/>
+                       OnClick="_ => ThemingDrawerOpenChanged.InvokeAsync(false)"
+                       Size="Size.Small" />
     </MudDrawerHeader>
 
     <div class="ma-6">
@@ -24,7 +27,7 @@
             <b>@L["Mode"]</b>
         </MudText>
         <MudGrid Class="my-3"
-                 Spacing="3">
+                 Spacing="2">
             <MudItem xs="4">
                 <MudTooltip Duration="1000" Text="@L["Switch to system"]">
                     <MudButton Class="mode-button"
@@ -33,7 +36,7 @@
                                Style="background: white;">
                         <ChildContent>
                             <MudIcon Color="Color.Primary"
-                                     Icon="@Icons.Material.Filled.AutoMode"/>
+                                     Icon="@Icons.Material.Filled.AutoMode" />
                         </ChildContent>
                     </MudButton>
                 </MudTooltip>
@@ -46,7 +49,7 @@
                                Style="background: white;">
                         <ChildContent>
                             <MudIcon Color="Color.Primary"
-                                     Icon="@Icons.Material.Filled.WbSunny"/>
+                                     Icon="@Icons.Material.Filled.WbSunny" />
                         </ChildContent>
                     </MudButton>
                 </MudTooltip>
@@ -59,7 +62,7 @@
                                Style="background: #333333;">
                         <ChildContent>
                             <MudIcon Icon="@Icons.Material.Filled.DarkMode"
-                                     Style="color: #c9c9c9"/>
+                                     Style="color: #c9c9c9" />
                         </ChildContent>
                     </MudButton>
                 </MudTooltip>
@@ -70,27 +73,55 @@
             <b>@L["Color"]</b>
         </MudText>
         <MudGrid Class="my-3"
-                 Spacing="3">
-            @foreach (var color in GetColorDefinition())
+                 Spacing="2">
+            @if (UserPreferences.IsDarkMode || UserPreferences.DarkLightTheme == DarkLightMode.Dark)
             {
-                <MudItem xs="4">
-                    <MudButton Class="@(color == UserPreferences.PrimaryColor ? "color-button color-button-selected" : "color-button")"
-                               FullWidth="true"
-                               OnClick="@(() => UpdateThemePrimaryColor(color))">
-                        <ChildContent>
-                            <div class="@(color == UserPreferences.PrimaryColor ? "oval oval-selected" : "oval")"
-                                 style="@($"background: {color};")">
-                            </div>
-                        </ChildContent>
-                    </MudButton>
-                </MudItem>
+                @foreach (var color in UserPreference.DarkPrimaryColors)
+                {
+                    <MudItem xs="4">
+                        <MudButton Class="@(color == UserPreferences.DarkPrimaryColor ? "color-button color-button-selected" : "color-button")"
+                                   FullWidth="true"
+                                   OnClick="@(() => UpdateThemePrimaryColor(color))">
+                            <ChildContent>
+                                <div class="@(color == UserPreferences.DarkPrimaryColor ? "color-square color-square-selected" : "color-square")"
+                                     style="@($"background: {color};")">
+                                    @if (color == UserPreferences.DarkPrimaryColor)
+                                    {
+                                        <MudIcon Size="Size.Large" Icon="@Icons.Material.Outlined.Check" Class="check-icon" />
+                                    }
+                                </div>
+                            </ChildContent>
+                        </MudButton>
+                    </MudItem>
+                }
+            }
+            else
+            {
+                @foreach (var color in UserPreference.PrimaryColors)
+                {
+                    <MudItem xs="4">
+                        <MudButton Class="@(color == UserPreferences.PrimaryColor ? "color-button color-button-selected" : "color-button")"
+                                   FullWidth="true"
+                                   OnClick="@(() => UpdateThemePrimaryColor(color))">
+                            <ChildContent>
+                                <div class="@(color == UserPreferences.PrimaryColor ? "color-square color-square-selected" : "color-square")"
+                                     style="@($"background: {color};")">
+                                    @if (color == UserPreferences.PrimaryColor)
+                                    {
+                                        <MudIcon Size="Size.Large" Icon="@Icons.Material.Outlined.Check" Class="check-icon" />
+                                    }
+                                </div>
+                            </ChildContent>
+                        </MudButton>
+                    </MudItem>
+                }
             }
         </MudGrid>
         <MudText Typo="Typo.body2">
             <b>@L["Border Radius"]</b>
         </MudText>
         <MudGrid Class="my-3"
-                 Spacing="3">
+                 Spacing="2">
 
             <MudItem xs="12">
                 <MudSlider Value="@UserPreferences.BorderRadius" Min="0" Max="@MaxValue" Immediate="false" Step="1" Color="Color.Primary"
@@ -104,25 +135,26 @@
             <b>@L["Default Font Size"]</b>
         </MudText>
         <MudGrid Class="my-3"
-                 Spacing="3">
+                 Spacing="2">
 
             <MudItem xs="12">
-                <MudSlider Value="@UserPreferences.DefaultFontSize" Min="0.75" Max="1.125" Immediate="false" Step="0.0625" Color="Color.Primary"
+                <MudSlider Value="@UserPreferences.DefaultFontSize" Min="0.625" Max="1.125" Immediate="false" Step="0.0625" Color="Color.Primary"
                            @oninput="@(e => ChangedFontSize(e))">
                     @($"{UserPreferences.DefaultFontSize.ToString()} rem")
                 </MudSlider>
             </MudItem>
 
         </MudGrid>
+        <MudText Typo="Typo.body2">
+            <b>@L["Online Users"]</b>
+        </MudText>
+        <OnlineUsersTracker></OnlineUsersTracker>
     </div>
 </MudDrawer>
-
-<MudOverlay DarkBackground="false"
-            OnClick="@(() => ThemingDrawerOpenChanged.InvokeAsync(false))"
-            Visible="ThemingDrawerOpen"
-            VisibleChanged="ThemingDrawerOpenChanged"/>
-
-
+<MudOverlay DarkBackground="true" Absolute="true"
+            AutoClose="true"
+            OnClosed="_=> ThemingDrawerOpenChanged.InvokeAsync(false)"
+            @bind-Visible="ThemingDrawerOpen" />
 <style>
 
     .mode-button {
@@ -130,71 +162,71 @@
         height: 64px;
     }
 
-    .oval {
-        width: 25px;
-        height: 15px;
-        border-radius: 50%;
-        transform: rotate(120deg);
+
+    .color-square {
+        width: 35px;
+        height: 35px;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
     }
 
-    .oval-selected {
-        transform: rotate(0deg);
+
+    .color-square-selected {
+        width: 35px;
+        height: 35px;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.6);
     }
+
 
     .color-button {
-        height: 50px;
+        height: 60px;
         border: 1px solid var(--mud-palette-table-lines);
+        transition: border 0.3s, transform 0.3s, box-shadow 0.3s;
+        cursor: pointer;
+        padding: 5px;
+        background-color: var(--mud-palette-surface);
+        border-radius: 8px;
     }
+
+
+        .color-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+
 
     .color-button-selected {
         border: 2px solid var(--mud-palette-primary);
+    }
+
+
+        .color-button-selected:hover {
+            transform: scale(1.08);
+        }
+
+    .check-icon {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #FFFFFF;
+        pointer-events: none;
     }
 </style>
 
 @code
 {
-    // TODO: The razor file could probably be cleaner..
-    // TODO: Find why MudOverlay does not work..
-    // TODO: Better CSS..
 
-    private readonly List<string> _primaryColors = new()
-    {
-        "#2d4275",
-        Colors.Green.Default,
-        "#0576b9",
-        "#8421d1",
-        "#FF7F00",
-        Colors.Red.Default
-    };
+    [Parameter] public bool ThemingDrawerOpen { get; set; }
 
-    private readonly List<string> _primaryDarkColors = new()
-    {
-        "#8b9ac6",
-        "#6c9f77",
-        "#79a5d1",
-        "#b194d7",
-        "#d0882c",
-        "#f88989"
-    };
+    [Parameter] public EventCallback<bool> ThemingDrawerOpenChanged { get; set; }
 
-    private List<string> GetColorDefinition()
-    {
-        return UserPreferences.DarkLightTheme switch
-        {
-            DarkLightMode.Dark => _primaryDarkColors,
-            DarkLightMode.Light => _primaryColors,
-            DarkLightMode.System => UserPreferences.IsDarkMode ? _primaryDarkColors : _primaryColors,
-            _ => UserPreferences.IsDarkMode ? _primaryDarkColors : _primaryColors
-        };
-    }
+    [EditorRequired][Parameter] public UserPreference UserPreferences { get; set; } = new();
 
-    [EditorRequired] [Parameter] public bool ThemingDrawerOpen { get; set; }
-
-    [EditorRequired] [Parameter] public EventCallback<bool> ThemingDrawerOpenChanged { get; set; }
-
-    [EditorRequired] [Parameter] public UserPreferences UserPreferences { get; set; } = new();
-
-    [EditorRequired] [Parameter] public EventCallback<UserPreferences> UserPreferencesChanged { get; set; }
+    [EditorRequired][Parameter] public EventCallback<UserPreference> UserPreferencesChanged { get; set; }
 
     [Parameter] public double Radius { get; set; }
 
@@ -202,7 +234,27 @@
 
     private async Task UpdateThemePrimaryColor(string color)
     {
-        UserPreferences.PrimaryColor = color;
+        switch (UserPreferences.DarkLightTheme)
+        {
+            case DarkLightMode.Dark:
+                UserPreferences.DarkPrimaryColor = color;
+                break;
+            case DarkLightMode.Light:
+                UserPreferences.PrimaryColor = color;
+                break;
+            case DarkLightMode.System:
+                if (UserPreferences.IsDarkMode)
+                {
+                    UserPreferences.DarkPrimaryColor = color;
+                }
+                else
+                {
+                    UserPreferences.PrimaryColor = color;
+                }
+
+                break;
+        }
+
         await UserPreferencesChanged.InvokeAsync(UserPreferences);
     }
 
@@ -215,19 +267,13 @@
     public async Task ToggleDarkLightMode(DarkLightMode mode)
     {
         UserPreferences.DarkLightTheme = mode;
-        if (mode == DarkLightMode.Dark)
+        if (mode == DarkLightMode.System)
         {
-            if (_primaryColors.IndexOf(UserPreferences.PrimaryColor) >= 0)
-            {
-                UserPreferences.PrimaryColor = _primaryDarkColors[_primaryColors.IndexOf(UserPreferences.PrimaryColor)];
-            }
+            UserPreferences.IsDarkMode = true;
         }
         else if (mode == DarkLightMode.Light)
         {
-            if (_primaryDarkColors.IndexOf(UserPreferences.PrimaryColor) >= 0)
-            {
-                UserPreferences.PrimaryColor = _primaryColors[_primaryDarkColors.IndexOf(UserPreferences.PrimaryColor)];
-            }
+            UserPreferences.IsDarkMode = false;
         }
 
         await UserPreferencesChanged.InvokeAsync(UserPreferences);
