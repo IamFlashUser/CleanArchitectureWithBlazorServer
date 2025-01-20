@@ -1,66 +1,47 @@
-using CleanArchitecture.Blazor.Application.Common.Interfaces.Identity;
+﻿using CleanArchitecture.Blazor.Application.Common.Interfaces.Identity;
 using CleanArchitecture.Blazor.Application.Features.Identity.DTOs;
 
 namespace CleanArchitecture.Blazor.Server.UI.Components.Autocompletes;
 
-public class PickSuperiorIdAutocomplete : MudAutocomplete<string>
+public class PickSuperiorIdAutocomplete<T> : MudAutocomplete<ApplicationUserDto>
 {
-    private List<ApplicationUserDto>? _userList;
-    [Parameter] public string? TenantId { get; set; }
-    [Parameter] public string OwnerName { get; set; } = string.Empty;
-
-    [Inject] private IIdentityService IdentityService { get; set; } = default!;
-
-    public override Task SetParametersAsync(ParameterView parameters)
+    public PickSuperiorIdAutocomplete()
     {
-        SearchFuncWithCancel = SearchKeyValues;
-        ToStringFunc = ToString;
+        SearchFunc = SearchKeyValues;
+        ToStringFunc = dto => dto?.UserName;
         Clearable = true;
         Dense = true;
         ResetValueOnEmptyText = true;
         ShowProgressIndicator = true;
-        MaxItems = 50;
-        return base.SetParametersAsync(parameters);
+        MaxItems = 200;
     }
+    [Parameter] public string? TenantId { get; set; }
+    [Parameter] public string? OwnerName { get; set; }
 
-    private async Task<IEnumerable<string>> SearchKeyValues(string value, CancellationToken cancellation)
+    [Inject] private IUserService UserService { get; set; } = default!;
+
+    private Task<IEnumerable<ApplicationUserDto>> SearchKeyValues(string? value, CancellationToken cancellation)
     {
-        // if text is null or empty, show complete list
-        _userList = await IdentityService.GetUsers(TenantId, cancellation);
-        List<string> result = new();
-
-        if (string.IsNullOrEmpty(value) && _userList is not null)
-        {
-            result = _userList.Select(x => x.Id).Take(MaxItems ?? 50).ToList();
-        }
-        else if (_userList is not null)
-        {
-            result = _userList
-                .Where(x => !x.UserName.Equals(OwnerName, StringComparison.OrdinalIgnoreCase) &&
-                            (x.UserName.Contains(value, StringComparison.OrdinalIgnoreCase) ||
-                             x.Email.Contains(value, StringComparison.OrdinalIgnoreCase))).Select(x => x.Id)
-                .Take(MaxItems ?? 50).ToList();
-            ;
-        }
-
-        return result;
+        var result = UserService.DataSource.Where(x =>
+            x.TenantId != null && x.TenantId.Equals(TenantId) && !x.UserName.Equals(OwnerName));
+        if (!string.IsNullOrWhiteSpace(value))
+            result = UserService.DataSource.Where(x => x.TenantId.Equals(TenantId) && !x.UserName.Equals(OwnerName) &&
+                                                       (x.UserName.Contains(value,
+                                                            StringComparison.OrdinalIgnoreCase) ||
+                                                        x.Email.Contains(value, StringComparison.OrdinalIgnoreCase)));
+        return Task.FromResult(result);
     }
-
-    private string ToString(string str)
+    protected override void OnInitialized()
     {
-        if (_userList is not null && !string.IsNullOrEmpty(str) &&
-            _userList.Any(x => x.Id.Equals(str, StringComparison.OrdinalIgnoreCase)))
-        {
-            var userDto = _userList.First(x => x.Id == str);
-            return userDto.UserName;
-        }
-
-        if (_userList is null && !string.IsNullOrEmpty(str))
-        {
-            var userName = IdentityService.GetUserName(str);
-            return userName;
-        }
-
-        return string.Empty;
+        UserService.OnChange += TenantsService_OnChange;
+    }
+    private async Task TenantsService_OnChange()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+    protected override async ValueTask DisposeAsyncCore()
+    {
+        UserService.OnChange -= TenantsService_OnChange;
+        await base.DisposeAsyncCore();
     }
 }

@@ -1,202 +1,181 @@
 ﻿@page "/user/profile"
-@using Color = Color
+
+@using CleanArchitecture.Blazor.Application.Features.Fusion
 @using ResizeMode = SixLabors.ImageSharp.Processing.ResizeMode
-@using Severity = Severity
 @using Size = SixLabors.ImageSharp.Size
 @using SixLabors.ImageSharp.Processing
 @using SixLabors.ImageSharp
 @using SixLabors.ImageSharp.Formats.Png
-@using CleanArchitecture.Blazor.Server.UI.Services.JsInterop
-@using CleanArchitecture.Blazor.Application.Common.Interfaces.Identity
 @using CleanArchitecture.Blazor.Domain.Identity
+@using CleanArchitecture.Blazor.Application.Common.Interfaces.Identity
+@using CleanArchitecture.Blazor.Server.UI.Services.JsInterop
 @using CleanArchitecture.Blazor.Domain.Common.Enums
 @inherits OwningComponentBase
-
-@inject IValidationService Validator
 @inject IStringLocalizer<Profile> L
-@inject IJSRuntime JS
-@inject IState<UserProfileState> UserProfileState
-@inject IDispatcher Dispatcher
 @inject IUploadService UploadService
-@inject IIdentityService IdentityService
-@inject UserManager<ApplicationUser> UserManager
-
+@inject IOnlineUserTracker OnlineUserTracker
+@inject UserProfileStateService UserProfileStateService
 <PageTitle>@Title</PageTitle>
 
-<ErrorBoundary>
-    <ChildContent>
-        @if (model is null || IsLoading)
-        {
-            <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7"/>
-        }
-        else
-        {
-            <MudTabs Outlined="true" Position="Position.Top" Rounded="true" Border="true" Elevation="6" ActivePanelIndexChanged="ActivePanelIndexChanged"
-                     ApplyEffectsToContainer="true" Class="mt-8" PanelClass="pa-6">
-                <MudTabPanel Text="@L["Profile"]">
-                    <MudForm Model="@model" @ref="@_form" Validation="@(Validator.ValidateValue(model))" Style="display: flex; align-content: center;  align-items: center; flex-direction: column;">
-                        <MudGrid Justify="Justify.Center" Style="max-width:600px;display:flex;">
-                            <MudItem sm="12" xs="12">
-                                <div class="d-flex justify-center">
 
-                                    @if (string.IsNullOrEmpty(model.ProfilePictureDataUrl))
-                                    {
-                                        <MudElement Class="d-flex flex-column  align-center">
-                                            <MudAvatar Style="height:128px; width:128px; font-size:2rem;">@model.UserName.ToUpper().First()</MudAvatar>
-                                            <div class="d-flex">
-                                                @if (model.AssignedRoles is not null)
-                                                {
-                                                    @foreach (var role in model.AssignedRoles)
-                                                    {
-                                                        <MudChip Size="MudBlazor.Size.Small">@role</MudChip>
-                                                    }
-                                                }
-                                            </div>
+@if (model is null)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+}
+else
+{
+    <MudTabs Outlined="true" Position="Position.Top" Rounded="true" Border="true" Elevation="6" ActivePanelIndexChanged="ActivePanelIndexChanged"
+             ApplyEffectsToContainer="true" Class="mt-8" PanelClass="pa-6">
+        <MudTabPanel Text="@L["Profile"]">
+            <MudForm Model="@model" @ref="@_form" Validation="@(Validator.ValidateValue(model))" Style="display: flex; align-content: center;  align-items: center; flex-direction: column;">
+                <MudGrid Justify="Justify.Center" Spacing="2" Style="max-width:600px;display:flex;">
+                    <MudItem sm="12" xs="12">
+                        <div class="d-flex justify-center">
+                            <MudElement Class="d-flex flex-column  align-center">
+                                @if (string.IsNullOrEmpty(model.ProfilePictureDataUrl))
+                                {
+                                    <MudAvatar Style="height:120px; width:120px; font-size:2rem;">@(string.IsNullOrEmpty(model.UserName) ? "" : model.UserName.ToUpper().First())</MudAvatar>
+                                }
+                                else
+                                {
+                                    <MudAvatar Style="height:120px; width:120px; font-size:2rem;">
+                                        <MudImage Src="@model.ProfilePictureDataUrl"></MudImage>
+                                    </MudAvatar>
+                                }
 
-                                        </MudElement>
-                                    }
-                                    else
-                                    {
-                                        <MudElement Class="d-flex flex-column  align-center">
-                                            <MudAvatar Style="height:128px; width:128px; font-size:2rem;">
-                                                <MudImage Src="@model.ProfilePictureDataUrl"></MudImage>
-                                            </MudAvatar>
-                                            <div class="d-flex">
-                                                @if (model.AssignedRoles is not null)
-                                                {
-                                                    @foreach (var role in model.AssignedRoles)
-                                                    {
-                                                        <MudChip Size="MudBlazor.Size.Small">@role</MudChip>
-                                                    }
-                                                }
-                                            </div>
-                                        </MudElement>
-                                    }
-                                    <MudTooltip Text="@L["Click upload a image."]">
-                                        <MudFileUpload T="IBrowserFile" Accept=".jpg, .jpeg, .png, .webp" FilesChanged="UploadPhoto" Style="margin-top:-10px;margin-left:-15px">
-                                            <ButtonTemplate>
-                                                <MudIconButton HtmlTag="label"
-                                                               Icon="@Icons.Material.Filled.PhotoCamera"
-                                                               for="@context">
-                                                </MudIconButton>
-                                            </ButtonTemplate>
-                                        </MudFileUpload>
-                                    </MudTooltip>
 
-                                </div>
-                            </MudItem>
-                            <MudItem sm="6" xs="12">
-                                <MudTextField For="@(() => model.TenantName)" @bind-Value="model.TenantName" Label="@L["Tenant Name"]" Variant="Variant.Text" ReadOnly="true"></MudTextField>
-                            </MudItem>
-                            <MudItem xs="12" sm="6">
-                                <MudTextField For="@(() => model.SuperiorName)" @bind-Value="model.SuperiorName" Label="@L["Superior Name"]" Variant="Variant.Text" ReadOnly="true"></MudTextField>
-                            </MudItem>
-                            <MudItem sm="6" xs="12">
-                                <MudTextField For="@(() => model.UserName)" @bind-Value="model.UserName" Label="@L["User Name"]" Variant="Variant.Text" ReadOnly="true"></MudTextField>
-                            </MudItem>
-                            <MudItem sm="6" xs="12">
-                                <MudTextField For="@(() => model.Email)" @bind-Value="model.Email" Label="@L["Email"]" Variant="Variant.Text" ReadOnly="true"></MudTextField>
-                            </MudItem>
-                            <MudItem sm="6" xs="12">
-                                <MudTextField For="@(() => model.DisplayName)" @bind-Value="model.DisplayName" Label="@L["Display Name"]" Variant="Variant.Text"></MudTextField>
-                            </MudItem>
-                            <MudItem sm="6" xs="12">
-                                <MudTextField For="@(() => model.PhoneNumber)" @bind-Value="model.PhoneNumber" Label="@L["Phone Number"]" Variant="Variant.Text"></MudTextField>
-                            </MudItem>
-                            <MudItem sm="12" xs="12" Class="d-flex justify-end">
-                                <MudButton ButtonType="ButtonType.Button" Disabled="@_submitting" Variant="Variant.Filled" Color="Color.Primary" Class="ml-auto" OnClick="@(async () => await Submit())">
-                                    @if (_submitting)
-                                    {
-                                        <MudProgressCircular Class="ms-n1" Size="MudBlazor.Size.Small" Indeterminate="true"/>
-                                        <MudText Class="ms-2">@ConstantString.Waiting </MudText>
-                                    }
-                                    else
-                                    {
-                                        <MudText>@ConstantString.Save</MudText>
-                                    }
-                                </MudButton>
-                            </MudItem>
-                        </MudGrid>
-                    </MudForm>
-                </MudTabPanel>
-                <MudTabPanel Text="@L["Change Password"]">
-                    <MudForm Model="@_changepassword" @ref="@_passwordform" Validation="@(Validator.ValidateValue(_changepassword))" Style="display: flex; align-content: center;  align-items: center; flex-direction: column;">
-                        <MudGrid Justify="Justify.Center" Style="max-width:300px">
-                            <MudItem sm="12" xs="12">
-                                <MudPasswordField Immediate="true"
-                                                  Label="@L["Current Password"]"
-                                                  For="@(() => _changepassword.CurrentPassword)"
-                                                  @bind-Value="_changepassword.CurrentPassword"
-                                                  Variant="Variant.Text"
-                                                  PasswordMode="true"
-                                                  Required="true"
-                                                  RequiredError="@L["current password is required!"]"/>
-                            </MudItem>
-                            <MudItem xs="12">
-                                <MudPasswordField Immediate="true"
-                                                  Label="@L["New Password"]"
-                                                  For="@(() => _changepassword.NewPassword)"
-                                                  @bind-Value="_changepassword.NewPassword"
-                                                  Variant="Variant.Text"
-                                                  PasswordMode="true"
-                                                  Required="true"
-                                                  RequiredError="@L["password is required!"]"/>
-                            </MudItem>
-                            <MudItem xs="12">
-                                <MudPasswordField Immediate="true"
-                                                  Label="@L["Confirm New Password"]"
-                                                  For="@(() => _changepassword.ConfirmPassword)"
-                                                  @bind-Value="_changepassword.ConfirmPassword"
-                                                  Variant="Variant.Text"
-                                                  PasswordMode="true"
-                                                  Required="true"
-                                                  RequiredError="@L["password is required!"]"/>
-                            </MudItem>
-                            <MudItem sm="12" xs="12" Class="d-flex justify-end">
-                                <MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Primary" Class="ml-auto" OnClick="@(async () => await ChangePassword())">
-                                    @if (_submitting)
-                                    {
-                                        <MudProgressCircular Class="ms-n1" Size="MudBlazor.Size.Small" Indeterminate="true"/>
-                                        <MudText Class="ms-2">@ConstantString.Waiting </MudText>
-                                    }
-                                    else
-                                    {
-                                        <MudText>@L["Change Password"]</MudText>
-                                    }
-                                </MudButton>
-                            </MudItem>
-                        </MudGrid>
-                    </MudForm>
-                </MudTabPanel>
-                <MudTabPanel Text="@L["Org Chart"]">
-                    <div class="chart-container"
-                         style="height: calc(100vh - 265px);">
-                    </div>
-                </MudTabPanel>
-            </MudTabs>
-        }
-    </ChildContent>
-    <ErrorContent>
-        <CustomError Exception="context"></CustomError>
-    </ErrorContent>
-</ErrorBoundary>
+                                @if (model.AssignedRoles is not null)
+                                {
+                                    <div class="d-flex">
+                                        @foreach (var role in model.AssignedRoles)
+                                        {
+                                            <MudChip T="string" Size="MudBlazor.Size.Small">@role</MudChip>
+                                        }
+                                    </div>
+                                }
 
-@code{
-    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+                            </MudElement>
 
+                            <MudTooltip Text="@L["Click upload a image"]">
+                                <MudFileUpload T="IBrowserFile" Accept=".jpg, .jpeg, .png, .webp" FilesChanged="UploadPhoto" Style="margin-top:-10px;margin-left:-15px">
+                                    <ActivatorContent>
+                                        <MudIconButton Icon="@Icons.Material.Filled.PhotoCamera">
+                                        </MudIconButton>
+                                    </ActivatorContent>
+                                </MudFileUpload>
+                            </MudTooltip>
+
+                        </div>
+                    </MudItem>
+                    <MudItem sm="6" xs="12">
+                        <MudTextField For="@(() => model.TenantName)"  @bind-Value="model.TenantName" Label="@L["Tenant Name"]"  ReadOnly="true"></MudTextField>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField For="@(() => model.SuperiorName)"  @bind-Value="model.SuperiorName" Label="@L["Superior Name"]"  ReadOnly="true"></MudTextField>
+                    </MudItem>
+                    <MudItem sm="6" xs="12">
+                        <MudTextField For="@(() => model.UserName)"  @bind-Value="model.UserName" Label="@L["User Name"]"  ReadOnly="true"></MudTextField>
+                    </MudItem>
+                    <MudItem sm="6" xs="12">
+                        <MudTextField For="@(() => model.Email)"  @bind-Value="model.Email" Label="@L["Email"]"  ReadOnly="true"></MudTextField>
+                    </MudItem>
+                    <MudItem sm="6" xs="12">
+                        <MudTextField For="@(() => model.DisplayName)"  @bind-Value="model.DisplayName" Label="@L["Full Name"]" ></MudTextField>
+                    </MudItem>
+                    <MudItem sm="6" xs="12">
+                        <MudTextField For="@(() => model.PhoneNumber)"  @bind-Value="model.PhoneNumber" Label="@L["Phone Number"]" ></MudTextField>
+                    </MudItem>
+                    <MudItem sm="6" xs="12">
+                        <TimeZoneAutocomplete T="string" For="@(() => model.TimeZoneId)"  @bind-Value="model.TimeZoneId" Label="@L["Time Zone"]" ></TimeZoneAutocomplete>
+                    </MudItem>
+                    <MudItem sm="6" xs="12">
+                        <LanguageAutocomplete T="string" For="@(() => model.LanguageCode)"  @bind-Value="model.LanguageCode" Label="@L["Language"]" ></LanguageAutocomplete>
+                    </MudItem>
+                    <MudItem sm="12" xs="12" Class="d-flex justify-end">
+                        <MudButton ButtonType="ButtonType.Button" Disabled="@_submitting"  Color="Color.Primary" Class="ml-auto" OnClick="@(async () => await Submit())">
+                            @if (_submitting)
+                            {
+                                <MudProgressCircular Class="ms-n1" Size="MudBlazor.Size.Small" Indeterminate="true" />
+                                <MudText Class="ms-2">@ConstantString.Waiting </MudText>
+                            }
+                            else
+                            {
+                                <MudText>@ConstantString.Save</MudText>
+                            }
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudTabPanel>
+        <MudTabPanel Text="@L["Change Password"]">
+            <MudForm Model="@_changepassword" @ref="@_passwordform" Validation="@(Validator.ValidateValue(_changepassword))" Style="display: flex; align-content: center;  align-items: center; flex-direction: column;">
+                <MudGrid Spacing="2" Justify="Justify.Center" Style="max-width:300px">
+                    <MudItem sm="12" xs="12">
+                        <MudTextField InputType="InputType.Password"
+                                      Label="@L["Current Password"]"
+                                          For="@(() => _changepassword.CurrentPassword)"
+                                          @bind-Value="_changepassword.CurrentPassword"
+                                          
+                                          Required="true" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField InputType="InputType.Password"
+                                          Label="@L["New Password"]"
+                                          For="@(() => _changepassword.NewPassword)"
+                                          @bind-Value="_changepassword.NewPassword"
+                                          
+                                          Required="true" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField InputType="InputType.Password"
+                                          Label="@L["Confirm New Password"]"
+                                          For="@(() => _changepassword.ConfirmPassword)"
+                                          @bind-Value="_changepassword.ConfirmPassword"
+                                          
+                                          Required="true" />
+                    </MudItem>
+                    <MudItem sm="12" xs="12" Class="d-flex justify-end">
+                        <MudButton ButtonType="ButtonType.Button"  Color="Color.Primary" Class="ml-auto" OnClick="@(async () => await ChangePassword())">
+                            @if (_submitting)
+                            {
+                                <MudProgressCircular Class="ms-n1" Size="MudBlazor.Size.Small" Indeterminate="true" />
+                                <MudText Class="ms-2">@ConstantString.Waiting </MudText>
+                            }
+                            else
+                            {
+                                <MudText>@L["Change Password"]</MudText>
+                            }
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudTabPanel>
+        <MudTabPanel Text="@L["Org Chart"]">
+            <div class="chart-container"
+                 style="height: calc(100vh - 265px);">
+            </div>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+
+
+@code {
+    [Inject] protected IServiceProvider Services { get; init; } = null!;
+    private string _currentUserName = string.Empty;
+
+    private UserProfile? UserProfile { get; set; }
+    private UserManager<ApplicationUser> UserManager = null!;
     public string Title { get; set; } = "Profile";
-
     private MudForm? _form;
     private MudForm? _passwordform;
     private bool _submitting;
-
     private ChangePasswordModel _changepassword { get; } = new();
     private readonly List<OrgItem> _orgData = new();
-
     public string Id => Guid.NewGuid().ToString();
-    private bool IsLoading => UserProfileState.Value.IsLoading;
-    private UserProfile? model => UserProfileState.Value.UserProfile;
+    private ChangeUserProfileModel model = null!;
 
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
 
     private async void ActivePanelIndexChanged(int index)
     {
@@ -208,7 +187,7 @@
 
     private async Task LoadOrgData()
     {
-        var currerntuserName = (await AuthState).User.GetUserName();
+
         var list = await UserManager.Users.Include(x => x.UserRoles).ThenInclude(x => x.Role).Include(x => x.Superior).ToListAsync();
 
         foreach (var item in list)
@@ -218,10 +197,10 @@
             var orgitem = new OrgItem();
             orgitem.Id = item.Id;
             orgitem.Name = item.DisplayName ?? item.UserName;
-            orgitem.Area = item.TenantName;
+            orgitem.Area = item.Tenant?.Name;
             orgitem.ProfileUrl = item.ProfilePictureDataUrl;
             orgitem.ImageUrl = item.ProfilePictureDataUrl;
-            if (currerntuserName == item.UserName)
+            if (_currentUserName == item.UserName)
                 orgitem.IsLoggedUser = true;
             orgitem.Size = "";
             orgitem.Tags = item.PhoneNumber ?? item.Email;
@@ -238,20 +217,19 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await base.OnInitializedAsync();
-        UserProfileState.StateChanged += StateOnStateChanged;
+        UserManager = Services.GetRequiredService<UserManager<ApplicationUser>>();
+        var state = await AuthState;
+        _currentUserName = state.User.Identity?.Name??string.Empty;
+        await UserProfileStateService.InitializeAsync(state.User.Identity?.Name??string.Empty);
+        model = UserProfileMapper.ToChangeUserProfileModel(UserProfileStateService.UserProfile);
     }
 
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        UserProfileState.StateChanged -= StateOnStateChanged;
     }
 
-    private void StateOnStateChanged(object? sender, EventArgs args)
-    {
-        InvokeAsync(() => { StateHasChanged(); });
-    }
+
 
     private async Task UploadPhoto(IBrowserFile file)
     {
@@ -263,15 +241,19 @@
         {
             using (var image = Image.Load(imgstream))
             {
+                var user = await UserManager.FindByNameAsync(model.UserName) ?? throw new NotFoundException($"The application user [{model.UserName}] was not found.");
                 image.Mutate(i => i.Resize(new ResizeOptions { Mode = ResizeMode.Crop, Size = new Size(128, 128) }));
                 image.Save(outStream, PngFormat.Instance);
-                var result = await UploadService.UploadAsync(new UploadRequest(Guid.NewGuid() + ".png", UploadType.ProfilePicture, outStream.ToArray()));
+                var result = await UploadService.UploadAsync(new UploadRequest($"{user.Id}_{DateTime.UtcNow.Ticks}.png", UploadType.ProfilePicture, outStream.ToArray(), true));
                 model.ProfilePictureDataUrl = result;
-                var user = await UserManager.FindByIdAsync(model.UserId!);
-                user!.ProfilePictureDataUrl = model.ProfilePictureDataUrl;
+                user.ProfilePictureDataUrl = model.ProfilePictureDataUrl;
                 await UserManager.UpdateAsync(user);
-                Snackbar.Add(L["The avatar has been updated."], Severity.Info);
-                Dispatcher.Dispatch(new UserProfileUpdateAction { UserProfile = model });
+                Snackbar.Add(L["The avatar has been updated"], Severity.Info);
+                UserProfileStateService.UpdateUserProfile(user.UserName!,user.ProfilePictureDataUrl, user.DisplayName, user.PhoneNumber,user.TimeZoneId, user.LanguageCode);
+                await OnlineUserTracker.Update(user.Id,
+                                               user.UserName??"",
+                                               user.DisplayName ?? "",
+                                               user.ProfilePictureDataUrl);
             }
         }
     }
@@ -284,14 +266,21 @@
             await _form!.Validate();
             if (_form.IsValid)
             {
-                var state = await AuthState;
-                var user = await UserManager.FindByIdAsync(model.UserId!);
-                user!.PhoneNumber = model.PhoneNumber;
+           
+                var user = await UserManager.FindByNameAsync(_currentUserName) ?? throw new NotFoundException($"The application user [{_currentUserName}] was not found.");
+                user.PhoneNumber = model.PhoneNumber;
                 user.DisplayName = model.DisplayName;
+                user.TimeZoneId = model.TimeZoneId;
+                user.LanguageCode = model.LanguageCode;
                 user.ProfilePictureDataUrl = model.ProfilePictureDataUrl;
                 await UserManager.UpdateAsync(user);
-                Snackbar.Add($"{ConstantString.UpdateSuccess}", Severity.Info);
-                Dispatcher.Dispatch(new UserProfileUpdateAction { UserProfile = model });
+                UserProfileStateService.UpdateUserProfile(user.UserName!,user.ProfilePictureDataUrl, user.DisplayName, user.PhoneNumber,user.TimeZoneId, user.LanguageCode);
+                await OnlineUserTracker.Update(user.Id,
+                                               user.UserName ?? "",
+                                               user.DisplayName ?? "",
+                                               user.ProfilePictureDataUrl??"");
+                Snackbar.Add($"{ConstantString.SaveSuccess}", Severity.Info);
+              
             }
         }
         finally
@@ -308,11 +297,11 @@
             await _passwordform!.Validate();
             if (_passwordform!.IsValid)
             {
-                var user = await UserManager.FindByIdAsync(model.UserId!);
-                var result = await UserManager.ChangePasswordAsync(user!, _changepassword.CurrentPassword, _changepassword.NewPassword);
+                var user = await UserManager.FindByNameAsync(model.UserName) ?? throw new NotFoundException($"The application user [{model.UserName}] was not found."); ;
+                var result = await UserManager.ChangePasswordAsync(user, _changepassword.CurrentPassword, _changepassword.NewPassword);
                 if (result.Succeeded)
                 {
-                    Snackbar.Add($"{L["Changed password successfully."]}", Severity.Info);
+                    Snackbar.Add($"{L["Password changed successfully"]}", Severity.Info);
                 }
                 else
                 {
@@ -326,6 +315,5 @@
         }
     }
 
-    
 
 }

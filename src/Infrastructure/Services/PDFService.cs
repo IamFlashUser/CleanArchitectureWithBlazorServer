@@ -1,4 +1,4 @@
-using QuestPDF.Fluent;
+﻿using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using Document = QuestPDF.Fluent.Document;
@@ -8,7 +8,8 @@ namespace CleanArchitecture.Blazor.Infrastructure.Services;
 public class PDFService : IPDFService
 {
     private const int MarginPTs = 56;
-    private const string FontFamilyName = Fonts.Consolas;
+    private const string FontFamilyName = Fonts.Arial;
+    private const string ChFontFamilyName = "Noto Sans CJK SC";
     private const float FontSize = 10F;
     private const int MaxCharsPerCell = 80;
     private const int MinCharsPerCell = 10;
@@ -27,8 +28,7 @@ public class PDFService : IPDFService
                     page.Margin(MarginPTs);
                     page.PageColor(Colors.White);
                     page.DefaultTextStyle(x =>
-                        x.FontSize(FontSize).FontFamily(FontFamilyName)
-                            .Fallback(TextStyle.Default.FontFamily("simhei")));
+                        x.FontSize(FontSize).FontFamily(FontFamilyName));
 
                     page.Header()
                         .Text(title)

@@ -1,22 +1,19 @@
-﻿namespace CleanArchitecture.Blazor.Application.Features.Loggers.Specifications;
+﻿using CleanArchitecture.Blazor.Application.Features.Loggers.Queries.PaginationQuery;
+
+namespace CleanArchitecture.Blazor.Application.Features.Loggers.Specifications;
 #nullable disable warnings
 public class LoggerAdvancedSpecification : Specification<Logger>
 {
-    public LoggerAdvancedSpecification(LoggerAdvancedFilter filter)
+    public LoggerAdvancedSpecification(LogsWithPaginationQuery filter)
     {
-        var today = DateTime.Now.ToUniversalTime().Date;
-        var start = Convert.ToDateTime(today.ToString("yyyy-MM-dd", CultureInfo.CurrentCulture) + " 00:00:00",
-            CultureInfo.CurrentCulture);
-        var end = Convert.ToDateTime(today.ToString("yyyy-MM-dd", CultureInfo.CurrentCulture) + " 23:59:59",
-            CultureInfo.CurrentCulture);
-        var last30days =
-            Convert.ToDateTime(today.AddDays(-30).ToString("yyyy-MM-dd", CultureInfo.CurrentCulture) + " 00:00:00",
-                CultureInfo.CurrentCulture);
-        Query.Where(p => p.TimeStamp.Date == DateTime.Now.Date, filter.ListView == LogListView.CreatedToday)
-            .Where(p => p.TimeStamp >= last30days, filter.ListView == LogListView.Last30days)
+        DateTime today = DateTime.UtcNow;
+        var todayrange = today.GetDateRange("TODAY", filter.LocalTimeOffset);
+        var last30daysrange = today.GetDateRange("LAST_30_DAYS", filter.LocalTimeOffset);
+        // Build query conditions
+        Query.Where(p => p.TimeStamp >= todayrange.Start && p.TimeStamp < todayrange.End.AddDays(1),
+                filter.ListView == LogListView.TODAY)
+            .Where(p => p.TimeStamp >= last30daysrange.Start, filter.ListView == LogListView.LAST_30_DAYS)
             .Where(p => p.Level == filter.Level.ToString(), filter.Level is not null)
-            .Where(
-                x => x.Message.Contains(filter.Keyword) || x.Exception.Contains(filter.Keyword) ||
-                     x.UserName.Contains(filter.Keyword), !string.IsNullOrEmpty(filter.Keyword));
+            .Where(x =>x.Message.Contains(filter.Keyword),!string.IsNullOrEmpty(filter.Keyword));
     }
 }

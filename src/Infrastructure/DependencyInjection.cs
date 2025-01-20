@@ -1,33 +1,51 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.IdentityModel.Tokens.Jwt;
 using System.Reflection;
-using System.Text;
+using ActualLab.Fusion;
+using CleanArchitecture.Blazor.Application.Common.Interfaces.MediatorWrapper;
 using CleanArchitecture.Blazor.Application.Common.Interfaces.MultiTenant;
 using CleanArchitecture.Blazor.Application.Common.Interfaces.Serialization;
+using CleanArchitecture.Blazor.Application.Features.Fusion;
 using CleanArchitecture.Blazor.Domain.Identity;
 using CleanArchitecture.Blazor.Infrastructure.Configurations;
 using CleanArchitecture.Blazor.Infrastructure.Constants.ClaimTypes;
 using CleanArchitecture.Blazor.Infrastructure.Constants.Database;
-using CleanArchitecture.Blazor.Infrastructure.PermissionSet;
 using CleanArchitecture.Blazor.Infrastructure.Constants.User;
+using CleanArchitecture.Blazor.Infrastructure.PermissionSet;
 using CleanArchitecture.Blazor.Infrastructure.Persistence.Interceptors;
-using CleanArchitecture.Blazor.Infrastructure.Services.JWT;
+using CleanArchitecture.Blazor.Infrastructure.Services.Circuits;
+using CleanArchitecture.Blazor.Infrastructure.Services.MediatorWrapper;
 using CleanArchitecture.Blazor.Infrastructure.Services.MultiTenant;
 using CleanArchitecture.Blazor.Infrastructure.Services.PaddleOCR;
 using CleanArchitecture.Blazor.Infrastructure.Services.Serialization;
 using FluentEmail.MailKitSmtp;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Components.Server.Circuits;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
 using ZiggyCreatures.Caching.Fusion;
 
 namespace CleanArchitecture.Blazor.Infrastructure;
-
 public static class DependencyInjection
 {
+    private const string IDENTITY_SETTINGS_KEY = "IdentitySettings";
+    private const string APP_CONFIGURATION_SETTINGS_KEY = "AppConfigurationSettings";
+    private const string DATABASE_SETTINGS_KEY = "DatabaseSettings";
+    private const string SMTP_CLIENT_OPTIONS_KEY = "SmtpClientOptions";
+    private const string USE_IN_MEMORY_DATABASE_KEY = "UseInMemoryDatabase";
+    private const string IN_MEMORY_DATABASE_NAME = "BlazorDashboardDb";
+    private const string NPGSQL_ENABLE_LEGACY_TIMESTAMP_BEHAVIOR = "Npgsql.EnableLegacyTimestampBehavior";
+    private const string POSTGRESQL_MIGRATIONS_ASSEMBLY = "CleanArchitecture.Blazor.Migrators.PostgreSQL";
+    private const string MSSQL_MIGRATIONS_ASSEMBLY = "CleanArchitecture.Blazor.Migrators.MSSQL";
+    private const string SQLITE_MIGRATIONS_ASSEMBLY = "CleanArchitecture.Blazor.Migrators.SqLite";
+    private const string SMTP_CLIENT_OPTIONS_DEFAULT_FROM_EMAIL = "SmtpClientOptions:DefaultFromEmail";
+    private const string EMAIL_TEMPLATES_PATH = "Resources/EmailTemplates";
+    private const string DEFAULT_FROM_EMAIL = "noreply@blazorserver.com";
+    private const string LOGIN_PATH = "/pages/authentication/login";
+    private const int DEFAULT_LOCKOUT_TIME_SPAN_MINUTES = 5;
+    private const int MAX_FAILED_ACCESS_ATTEMPTS = 5;
+
     public static IServiceCollection AddInfrastructure(this IServiceCollection services,
         IConfiguration configuration)
     {
@@ -39,68 +57,27 @@ public static class DependencyInjection
         services
             .AddAuthenticationService(configuration)
             .AddFusionCacheService()
-            .AddSimpleJwtService(options =>
-            {
-                options.UseCookie = false;
-
-                options.AccessSigningOptions = new JwtSigningOptions
-                {
-                    SigningKey =
-                        new SymmetricSecurityKey(
-                            Encoding.UTF8.GetBytes("yn4$#cr=+i@eljzlhhr2xlgf98aud&(3&!po3r60wlm^3*huh#")),
-                    Algorithm = SecurityAlgorithms.HmacSha256,
-                    ExpirationMinutes = 120
-                };
-
-                options.RefreshSigningOptions = new JwtSigningOptions
-                {
-                    SigningKey =
-                        new SymmetricSecurityKey(
-                            Encoding.UTF8.GetBytes("e_qmg*)=vr9yxpp^g^#((wkwk7fh#+3qy!zzq+r-hifw2(_u+=")),
-                    Algorithm = SecurityAlgorithms.HmacSha256,
-                    ExpirationMinutes = 2880
-                };
-                options.AccessValidationParameters = new TokenValidationParameters
-                {
-                    IssuerSigningKey = options.AccessSigningOptions.SigningKey,
-                    ValidIssuer = options.Issuer,
-                    ValidAudience = options.Audience,
-                    ValidateIssuerSigningKey = true,
-                    ClockSkew = TimeSpan.Zero
-                };
-                options.RefreshValidationParameters = new TokenValidationParameters
-                {
-                    IssuerSigningKey = options.RefreshSigningOptions.SigningKey,
-                    ValidIssuer = options.Issuer,
-                    ValidAudience = options.Audience,
-                    ValidateIssuerSigningKey = true,
-                    ClockSkew = TimeSpan.Zero
-                };
-            });
-
+            .AddSessionInfoService()
+            .AddFusionService();
 
         services.AddSingleton<IUsersStateContainer, UsersStateContainer>();
-
+        services.AddScoped<IScopedMediator, ScopedMediator>();
         return services;
     }
 
     private static IServiceCollection AddSettings(this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<IdentitySettings>(configuration.GetSection(IdentitySettings.Key))
+        services.Configure<IdentitySettings>(configuration.GetSection(IDENTITY_SETTINGS_KEY))
             .AddSingleton(s => s.GetRequiredService<IOptions<IdentitySettings>>().Value)
             .AddSingleton<IIdentitySettings>(s => s.GetRequiredService<IOptions<IdentitySettings>>().Value);
 
-        services.Configure<AppConfigurationSettings>(configuration.GetSection(AppConfigurationSettings.Key))
+        services.Configure<AppConfigurationSettings>(configuration.GetSection(APP_CONFIGURATION_SETTINGS_KEY))
             .AddSingleton(s => s.GetRequiredService<IOptions<AppConfigurationSettings>>().Value)
             .AddSingleton<IApplicationSettings>(s => s.GetRequiredService<IOptions<AppConfigurationSettings>>().Value);
 
-        services.Configure<DatabaseSettings>(configuration.GetSection(DatabaseSettings.Key))
+        services.Configure<DatabaseSettings>(configuration.GetSection(DATABASE_SETTINGS_KEY))
             .AddSingleton(s => s.GetRequiredService<IOptions<DatabaseSettings>>().Value);
-
-        services.Configure<PrivacySettings>(configuration.GetSection(PrivacySettings.Key))
-            .AddSingleton(s => s.GetRequiredService<IOptions<PrivacySettings>>().Value);
-
         return services;
     }
 
@@ -110,10 +87,10 @@ public static class DependencyInjection
         services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>()
             .AddScoped<ISaveChangesInterceptor, DispatchDomainEventsInterceptor>();
 
-        if (configuration.GetValue<bool>("UseInMemoryDatabase"))
+        if (configuration.GetValue<bool>(USE_IN_MEMORY_DATABASE_KEY))
             services.AddDbContext<ApplicationDbContext>(options =>
             {
-                options.UseInMemoryDatabase("BlazorDashboardDb");
+                options.UseInMemoryDatabase(IN_MEMORY_DATABASE_NAME);
                 options.EnableSensitiveDataLogging();
             });
         else
@@ -121,11 +98,12 @@ public static class DependencyInjection
             {
                 var databaseSettings = p.GetRequiredService<IOptions<DatabaseSettings>>().Value;
                 m.AddInterceptors(p.GetServices<ISaveChangesInterceptor>());
+                m.UseExceptionProcessor(databaseSettings.DBProvider);
                 m.UseDatabase(databaseSettings.DBProvider, databaseSettings.ConnectionString);
             });
 
         services.AddScoped<IDbContextFactory<ApplicationDbContext>, BlazorContextFactory<ApplicationDbContext>>();
-        services.AddTransient<IApplicationDbContext>(provider =>
+        services.AddScoped<IApplicationDbContext>(provider =>
             provider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext());
         services.AddScoped<ApplicationDbContextInitializer>();
 
@@ -138,18 +116,41 @@ public static class DependencyInjection
         switch (dbProvider.ToLowerInvariant())
         {
             case DbProviderKeys.Npgsql:
-                AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+                AppContext.SetSwitch(NPGSQL_ENABLE_LEGACY_TIMESTAMP_BEHAVIOR, true);
                 return builder.UseNpgsql(connectionString,
-                        e => e.MigrationsAssembly("CleanArchitecture.Blazor.Migrators.PostgreSQL"))
+                        e => e.MigrationsAssembly(POSTGRESQL_MIGRATIONS_ASSEMBLY))
                     .UseSnakeCaseNamingConvention();
-
+                  
             case DbProviderKeys.SqlServer:
                 return builder.UseSqlServer(connectionString,
-                    e => e.MigrationsAssembly("CleanArchitecture.Blazor.Migrators.MSSQL"));
+                    e => e.MigrationsAssembly(MSSQL_MIGRATIONS_ASSEMBLY));
 
             case DbProviderKeys.SqLite:
                 return builder.UseSqlite(connectionString,
-                    e => e.MigrationsAssembly("CleanArchitecture.Blazor.Migrators.SqLite"));
+                    e => e.MigrationsAssembly(SQLITE_MIGRATIONS_ASSEMBLY));
+
+            default:
+                throw new InvalidOperationException($"DB Provider {dbProvider} is not supported.");
+        }
+    }
+
+    private static DbContextOptionsBuilder UseExceptionProcessor(this DbContextOptionsBuilder builder, string dbProvider)
+    {
+     
+        switch (dbProvider.ToLowerInvariant())
+        {
+            case DbProviderKeys.Npgsql:
+                EntityFramework.Exceptions.PostgreSQL.ExceptionProcessorExtensions.UseExceptionProcessor(builder);
+                return builder;
+
+            case DbProviderKeys.SqlServer:
+                EntityFramework.Exceptions.SqlServer.ExceptionProcessorExtensions.UseExceptionProcessor(builder);
+                return builder;
+
+
+            case DbProviderKeys.SqLite:
+                EntityFramework.Exceptions.Sqlite.ExceptionProcessorExtensions.UseExceptionProcessor(builder);
+                return builder;
 
             default:
                 throw new InvalidOperationException($"DB Provider {dbProvider} is not supported.");
@@ -175,8 +176,6 @@ public static class DependencyInjection
             });
 
         return services.AddSingleton<ISerializer, SystemTextJsonSerializer>()
-            .AddScoped<ICurrentUserService, CurrentUserService>()
-            .AddScoped<ITenantProvider, TenantProvider>()
             .AddScoped<IValidationService, ValidationService>()
             .AddScoped<IDateTime, DateTimeService>()
             .AddScoped<IExcelService, ExcelService>()
@@ -189,15 +188,16 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         var smtpClientOptions = new SmtpClientOptions();
-        configuration.GetSection(nameof(SmtpClientOptions)).Bind(smtpClientOptions);
-        services.Configure<SmtpClientOptions>(configuration.GetSection(nameof(SmtpClientOptions)));
+        configuration.GetSection(SMTP_CLIENT_OPTIONS_KEY).Bind(smtpClientOptions);
+        services.Configure<SmtpClientOptions>(configuration.GetSection(SMTP_CLIENT_OPTIONS_KEY));
 
         services.AddSingleton(smtpClientOptions);
         services.AddScoped<IMailService, MailService>();
 
         // configure your sender and template choices with dependency injection.
-        services.AddFluentEmail("support@blazorserver.com")
-            .AddRazorRenderer(Path.Combine(Directory.GetCurrentDirectory(), "Resources", "EmailTemplates"))
+        var defaultFromEmail = configuration.GetValue<string>(SMTP_CLIENT_OPTIONS_DEFAULT_FROM_EMAIL);
+        services.AddFluentEmail(defaultFromEmail ?? DEFAULT_FROM_EMAIL)
+            .AddRazorRenderer(Path.Combine(Directory.GetCurrentDirectory(), EMAIL_TEMPLATES_PATH))
             .AddMailKitSender(smtpClientOptions);
 
         return services;
@@ -206,34 +206,53 @@ public static class DependencyInjection
     private static IServiceCollection AddAuthenticationService(this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddIdentity<ApplicationUser, ApplicationRole>()
+
+        services.AddScoped<IUserStore<ApplicationUser>, MultiTenantUserStore>();
+        services.AddScoped<UserManager<ApplicationUser>, MultiTenantUserManager>();
+        services.AddIdentityCore<ApplicationUser>()
+            .AddRoles<ApplicationRole>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
-            .AddClaimsPrincipalFactory<ApplicationUserClaimsPrincipalFactory>()
+            .AddSignInManager()
+            .AddClaimsPrincipalFactory<MultiTenantUserClaimsPrincipalFactory>()
             .AddDefaultTokenProviders();
 
+        // Add the custom role validator MultiTenantRoleValidator to override the default validation logic.
+        // Ensures role names are unique within each tenant.
+        services.AddScoped<IRoleValidator<ApplicationRole>, MultiTenantRoleValidator>();
+
+        // Find the default RoleValidator<ApplicationRole> registration in the service collection.
+        var defaultRoleValidator = services.FirstOrDefault(descriptor => descriptor.ImplementationType == typeof(RoleValidator<ApplicationRole>));
+
+        // If the default role validator is found, remove it to ensure only MultiTenantRoleValidator is used.
+        if (defaultRoleValidator != null)
+        {
+            services.Remove(defaultRoleValidator);
+        }
         services.Configure<IdentityOptions>(options =>
         {
-            var identitySettings = configuration.GetRequiredSection(IdentitySettings.Key).Get<IdentitySettings>();
-
-
+            var identitySettings = configuration.GetRequiredSection(IDENTITY_SETTINGS_KEY).Get<IdentitySettings>();
+            identitySettings = identitySettings ?? new IdentitySettings();
             // Password settings
-            options.Password.RequireDigit = identitySettings!.RequireDigit;
+            options.Password.RequireDigit = identitySettings.RequireDigit;
             options.Password.RequiredLength = identitySettings.RequiredLength;
             options.Password.RequireNonAlphanumeric = identitySettings.RequireNonAlphanumeric;
             options.Password.RequireUppercase = identitySettings.RequireUpperCase;
             options.Password.RequireLowercase = identitySettings.RequireLowerCase;
 
             // Lockout settings
-            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(identitySettings.DefaultLockoutTimeSpan);
-            options.Lockout.MaxFailedAccessAttempts = 10;
+            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(DEFAULT_LOCKOUT_TIME_SPAN_MINUTES);
+            options.Lockout.MaxFailedAccessAttempts = MAX_FAILED_ACCESS_ATTEMPTS;
             options.Lockout.AllowedForNewUsers = true;
 
             // Default SignIn settings.
-            options.SignIn.RequireConfirmedEmail = false;
+            options.SignIn.RequireConfirmedEmail = true;
             options.SignIn.RequireConfirmedPhoneNumber = false;
+            options.SignIn.RequireConfirmedAccount = true;
 
             // User settings
             options.User.RequireUniqueEmail = true;
+            //options.Tokens.EmailConfirmationTokenProvider = "Email";
+            
         });
 
         services.AddScoped<IIdentityService, IdentityService>()
@@ -250,37 +269,39 @@ public static class DependencyInjection
                             policy => policy.RequireClaim(ApplicationClaimTypes.Permission, (string)propertyValue));
                 }
             })
-            .AddAuthentication()
-            .AddJwtBearer(options =>
+            .AddAuthentication(options =>
             {
-                options.SaveToken = true;
-                options.RequireHttpsMetadata = false;
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuerSigningKey = false,
-                    IssuerSigningKey =
-                        new SymmetricSecurityKey(
-                            Encoding.UTF8.GetBytes("yn4$#cr=+i@eljzlhhr2xlgf98aud&(3&!po3r60wlm^3*huh#")),
-                    ValidateIssuer = false,
-                    ValidateAudience = false,
-                    RoleClaimType = ClaimTypes.Role,
-                    ClockSkew = TimeSpan.Zero,
-                    ValidateLifetime = false
-                };
-                options.Events = new JwtBearerEvents
-                {
-                    OnMessageReceived = context =>
-                    {
-                        var accessToken = context.Request.Headers.Authorization;
-                        var path = context.HttpContext.Request.Path;
-                        if (!string.IsNullOrEmpty(accessToken) &&
-                            path.StartsWithSegments("/signalRHub")) // TODO: move in server?
-                            context.Token = accessToken.ToString().Substring(7);
-                        return Task.CompletedTask;
-                    }
-                };
-            });
-        services.ConfigureApplicationCookie(options => { options.LoginPath = "/pages/authentication/login"; });
+                options.DefaultScheme = IdentityConstants.ApplicationScheme;
+                options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+            })
+            .AddMicrosoftAccount(microsoftOptions =>
+            {
+                microsoftOptions.ClientId = configuration.GetValue<string>("Authentication:Microsoft:ClientId") ?? string.Empty;
+                microsoftOptions.ClientSecret = configuration.GetValue<string>("Authentication:Microsoft:ClientSecret") ?? string.Empty;
+                //microsoftOptions.CallbackPath = new PathString("/pages/authentication/ExternalLogin"); # dotn't set this parameter!!
+            })
+            .AddGoogle(googleOptions =>
+            {
+                googleOptions.ClientId = configuration.GetValue<string>("Authentication:Google:ClientId") ?? string.Empty;
+                googleOptions.ClientSecret = configuration.GetValue<string>("Authentication:Google:ClientSecret") ?? string.Empty; ;
+            }
+            )
+            //.AddFacebook(facebookOptions =>
+            //{
+            //    facebookOptions.AppId = configuration.GetValue<string>("Authentication:Facebook:AppId") ?? string.Empty;
+            //    facebookOptions.AppSecret = configuration.GetValue<string>("Authentication:Facebook:AppSecret") ?? string.Empty;
+            //})
+            .AddIdentityCookies(options => { });
+
+        services.ConfigureApplicationCookie(options =>
+        {
+            options.ExpireTimeSpan = TimeSpan.FromDays(15);
+            options.SlidingExpiration = true;
+            options.SessionStore = new MemoryCacheTicketStore();
+            options.LoginPath = LOGIN_PATH;
+        });
+        services.AddDataProtection().PersistKeysToDbContext<ApplicationDbContext>();
+
         services.AddSingleton<UserService>()
             .AddSingleton<IUserService>(sp =>
             {
@@ -304,29 +325,26 @@ public static class DependencyInjection
             FailSafeMaxDuration = TimeSpan.FromHours(8),
             FailSafeThrottleDuration = TimeSpan.FromSeconds(30),
             // FACTORY TIMEOUTS
-            FactorySoftTimeout = TimeSpan.FromMilliseconds(100),
-            FactoryHardTimeout = TimeSpan.FromMilliseconds(1500)
+            FactorySoftTimeout = TimeSpan.FromSeconds(10),
+            FactoryHardTimeout = TimeSpan.FromSeconds(30),
+            AllowTimedOutFactoryBackgroundCompletion = true,    
         });
         return services;
     }
 
-    private static IServiceCollection AddSimpleJwtService(this IServiceCollection services,
-        Action<SimpleJwtOptions> options)
+    private static IServiceCollection AddSessionInfoService(this IServiceCollection services)
     {
-        var sjOptions = new SimpleJwtOptions();
-
-        options?.Invoke(sjOptions);
-
-        services.AddSingleton(typeof(IOptions<SimpleJwtOptions>), Options.Create(sjOptions))
-            .AddScoped<IAccessTokenProvider, AccessTokenProvider>()
-            .AddScoped<IAccessTokenGenerator, AccessTokenGenerator>()
-            .AddScoped<IRefreshTokenGenerator, RefreshTokenGenerator>()
-            .AddScoped<ITokenGeneratorService, TokenGeneratorService>()
-            .AddScoped<IAccessTokenValidator, AccessTokenValidator>()
-            .AddScoped<IRefreshTokenValidator, RefreshTokenValidator>()
-            .AddScoped<ILoginService, JwtLoginService>()
-            .AddScoped<JwtSecurityTokenHandler>();
-
+        services.AddScoped<ICurrentUserContext, CurrentUserContext>();
+        services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
+        services.AddScoped<ICurrentUserContextSetter, CurrentUserContextSetter>();
+        services.AddScoped<CircuitHandler, UserSessionCircuitHandler>();
         return services;
+    }
+
+    private static void AddFusionService(this IServiceCollection services)
+    {
+        var fusion = services.AddFusion();
+        fusion.AddService<IUserSessionTracker, UserSessionTracker>();
+        fusion.AddService<IOnlineUserTracker, OnlineUserTracker>();
     }
 }

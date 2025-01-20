@@ -1,9 +1,9 @@
-@using Toolbelt.Blazor.HotKeys2
+﻿@using Toolbelt.Blazor.HotKeys2
 @inject IStringLocalizer<SharedResource> L
 @inject HotKeys HotKeys
-@inject NavigationManager Navigation
+@implements IAsyncDisposable
 
-<MudDialog DisableSidePadding="true">
+<MudDialog>
     <DialogContent>
         <MudContainer>
             <MudTextField @bind-Value="@_search"
@@ -12,11 +12,11 @@
                           Placeholder="@L["Search..."]"
                           TextChanged="@(SearchPages)"
                           Immediate="true"/>
-            <MudList Clickable="true"
+            <MudList T="string" 
                      Style="height: 300px; overflow-y: auto">
                 @foreach (var (key, value) in _pagesFiltered)
                 {
-                    <MudListItem OnClick="@(() => Navigation.NavigateTo(value))">
+                    <MudListItem T="string" OnClick="@(() => Navigation.NavigateTo(value))">
                         <MudHighlighter HighlightedText="@_search"
                                         Text="@key"/>
                     </MudListItem>
@@ -28,16 +28,19 @@
 
 @code
 {
-    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
 
     private readonly Dictionary<string, string> _pages = new();
     private HotKeysContext? _hotKeysContext;
     private Dictionary<string, string> _pagesFiltered = new();
     private string _search = string.Empty;
-
-    public void Dispose()
+   
+    public async ValueTask DisposeAsync()
     {
-        _hotKeysContext?.Dispose();
+        if (_hotKeysContext != null)
+        {
+            await _hotKeysContext.DisposeAsync();
+        }
     }
 
     protected override void OnInitialized()

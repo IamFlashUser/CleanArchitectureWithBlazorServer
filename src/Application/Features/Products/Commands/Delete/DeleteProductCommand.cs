@@ -1,4 +1,4 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 
@@ -15,25 +15,19 @@ public class DeleteProductCommand : ICacheInvalidatorRequest<Result<int>>
 
     public int[] Id { get; }
     public string CacheKey => ProductCacheKey.GetAllCacheKey;
-    public CancellationTokenSource? SharedExpiryTokenSource => ProductCacheKey.SharedExpiryTokenSource();
+    public IEnumerable<string>? Tags => ProductCacheKey.Tags;
 }
 
 public class DeleteProductCommandHandler :
     IRequestHandler<DeleteProductCommand, Result<int>>
 {
     private readonly IApplicationDbContext _context;
-    private readonly IStringLocalizer<DeleteProductCommandHandler> _localizer;
-    private readonly IMapper _mapper;
 
     public DeleteProductCommandHandler(
-        IApplicationDbContext context,
-        IStringLocalizer<DeleteProductCommandHandler> localizer,
-        IMapper mapper
+        IApplicationDbContext context
     )
     {
         _context = context;
-        _localizer = localizer;
-        _mapper = mapper;
     }
 
     public async Task<Result<int>> Handle(DeleteProductCommand request, CancellationToken cancellationToken)

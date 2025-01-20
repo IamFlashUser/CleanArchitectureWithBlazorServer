@@ -1,30 +1,24 @@
-﻿@using Severity = Severity
-@using Toolbelt.Blazor.HotKeys2
-@using CleanArchitecture.Blazor.Server.UI.Services.UserPreferences
-@using CleanArchitecture.Blazor.Server.UI.Constants
-@inherits LayoutComponentBase
-
+﻿@inherits LayoutComponentBase
+@using CleanArchitecture.Blazor.Server.UI.Services.JsInterop
+@using CleanArchitecture.Blazor.Server.UI.Themes
+@implements IDisposable
 @inject LayoutService LayoutService
-@inject HotKeys HotKeys
-@inject IStringLocalizer<SharedResource> L
-
 <PageTitle>@ApplicationSettings.AppName</PageTitle>
 <MudRTLProvider RightToLeft="@LayoutService.IsRTL">
-    <MudDialogProvider/>
-    <MudSnackbarProvider/>
-    <MudThemeProvider @ref="@_mudThemeProvider" Theme="@LayoutService.CurrentTheme" IsDarkMode="@LayoutService.IsDarkMode" IsDarkModeChanged="@LayoutService.SetDarkMode"/>
-    @Body
+    <MudThemeProvider />
+    <MudPopoverProvider />
+    <MudDialogProvider />
+    <MudSnackbarProvider />
+    <MudThemeProvider @ref="@_mudThemeProvider" Theme="@LayoutService.CurrentTheme" IsDarkMode="@LayoutService.IsDarkMode" IsDarkModeChanged="@LayoutService.SetDarkMode" />
+
+        @Body
+
 </MudRTLProvider>
 
 @code
 {
-
-    private UserPreferences _userPreferences = new();
     private MudThemeProvider _mudThemeProvider = null!;
     private bool _defaultDarkMode;
-
-   
-
     public void Dispose()
     {
         LayoutService.MajorUpdateOccured -= LayoutServiceOnMajorUpdateOccured;
@@ -37,7 +31,6 @@
         if (firstRender)
         {
             await ApplyUserPreferences();
-            await _mudThemeProvider.WatchSystemPreference(OnSystemPreferenceChanged);
             StateHasChanged();
         }
     }
@@ -45,25 +38,19 @@
     private async Task ApplyUserPreferences()
     {
         _defaultDarkMode = await _mudThemeProvider.GetSystemPreference();
-        _userPreferences = await LayoutService.ApplyUserPreferences(_defaultDarkMode);
+        await LayoutService.ApplyUserPreferences(_defaultDarkMode);
     }
 
-    protected override void OnInitialized()
+    protected override Task OnInitializedAsync()
     {
         LayoutService.MajorUpdateOccured += LayoutServiceOnMajorUpdateOccured;
         LayoutService.SetBaseTheme(Theme.ApplicationTheme());
-    }
-
-    private async Task OnSystemPreferenceChanged(bool newValue)
-    {
-        await LayoutService.OnSystemPreferenceChanged(newValue);
+        return base.OnInitializedAsync();
     }
 
     private void LayoutServiceOnMajorUpdateOccured(object? sender, EventArgs e)
     {
-        StateHasChanged();
+        InvokeAsync(() => StateHasChanged());
     }
 
-
-     
 }

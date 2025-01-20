@@ -1,7 +1,4 @@
-﻿using FluentValidation;
-using static CleanArchitecture.Blazor.Application.Features.Identity.DTOs.ApplicationUserDto;
-
-namespace CleanArchitecture.Blazor.Application.Common.Security;
+﻿namespace CleanArchitecture.Blazor.Application.Common.Security;
 
 public class UserProfile
 {
@@ -19,28 +16,16 @@ public class UserProfile
     public bool IsActive { get; set; }
     public string? TenantId { get; set; }
     public string? TenantName { get; set; }
+
+    public string? TimeZoneId { get; set; }
+    public string? LanguageCode { get; set; }
+    public TimeSpan LocalTimeOffset => string.IsNullOrEmpty(TimeZoneId)
+    ? TimeZoneInfo.Local.BaseUtcOffset
+    : TimeZoneInfo.FindSystemTimeZoneById(TimeZoneId).BaseUtcOffset;
 }
 
-public class UserProfileEditValidator : AbstractValidator<UserProfile>
+[Mapper]
+public static partial class UserProfileMapper
 {
-    private readonly IStringLocalizer<ApplicationUserDtoValidator> _localizer;
-
-    public UserProfileEditValidator(IStringLocalizer<ApplicationUserDtoValidator> localizer)
-    {
-        _localizer = localizer;
-        RuleFor(x => x.UserName)
-           .NotEmpty().WithMessage(_localizer["User name cannot be empty"])
-           .Length(2, 100).WithMessage(_localizer["User name must be between 2 and 100 characters"]);
-        RuleFor(x => x.Email)
-            .NotEmpty().WithMessage(_localizer["E-mail cannot be empty"])
-            .MaximumLength(100).WithMessage(_localizer["E-mail must be less than 100 characters"])
-            .EmailAddress().WithMessage(_localizer["E-mail must be a valid email address"]);
-
-        RuleFor(x => x.DisplayName)
-            .MaximumLength(128).WithMessage(_localizer["Display name must be less than 128 characters"]);
-
-        RuleFor(x => x.PhoneNumber)
-            .MaximumLength(20).WithMessage(_localizer["Phone number must be less than 20 digits"]);
-
-    }
+    public static partial ChangeUserProfileModel ToChangeUserProfileModel(UserProfile entity);
 }
